@@ -1,0 +1,329 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  SELLER
+  BUYER
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  PRICE_OFFER
+}
+
+enum PaymentMethod {
+  COD
+  DIGITAL_PAYMENT
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?  @map("password_hash")
+  role         UserRole @default(BUYER)
+  firstName    String   @map("first_name")
+  lastName     String   @map("last_name")
+  phone        String?
+  isVerified   Boolean  @default(false) @map("is_verified")
+  googleId     String?  @unique @map("google_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  seller                      Seller?
+  appointments                Appointment[]
+  reviews                     Review[]                     @relation("ReviewerReviews")
+  receivedReviews             Review[]                     @relation("RevieweeReviews")
+  appointmentStatusChanges    AppointmentStatusHistory[]   @relation("AppointmentStatusChanges")
+  sentAppointmentMessages     AppointmentMessage[]         @relation("SentAppointmentMessages")
+  receivedAppointmentMessages AppointmentMessage[]         @relation("ReceivedAppointmentMessages")
+  
+  // Product Chat Relations
+  buyerChats                  ProductChat[]                @relation("BuyerChats")
+  sellerChats                 ProductChat[]                @relation("SellerChats")
+  sentProductMessages         ProductMessage[]             @relation("SentProductMessages")
+
+  @@map("users")
+}
+
+model Seller {
+  id                   String    @id @default(cuid())
+  userId               String    @unique @map("user_id")
+  shopName             String    @map("shop_name")
+  shopDescription      String?   @map("shop_description")
+  shopAddress          String    @map("shop_address")
+  businessType         String?   @map("business_type")
+  city                 String
+  area                 String
+  latitude             Float?
+  longitude            Float?
+  isApproved           Boolean   @default(false) @map("is_approved")
+  subscriptionPlan     String?   @map("subscription_plan")
+  subscriptionExpiresAt DateTime? @map("subscription_expires_at")
+  totalEarnings        String?   @map("total_earnings") // Encrypted field
+  ratingAverage        Float?    @default(0) @map("rating_average")
+  ratingCount          Int       @default(0) @map("rating_count")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products     Product[]
+  services     Service[]
+  appointments Appointment[]
+  availability SellerAvailability[]
+  timeOff      SellerTimeOff[]
+  chatSettings SellerChatSettings?
+
+  @@map("sellers")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  parentId    String?   @map("parent_id")
+  imageUrl    String?   @map("image_url")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  parent   Category? @relation("CategoryChildren", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryChildren")
+  products Product[]
+  services Service[]
+
+  @@map("categories")
+}
+
+model Product {
+  id             String  @id @default(cuid())
+  sellerId       String  @map("seller_id")
+  categoryId     String  @map("category_id")
+  title          String
+  description    String
+  specifications Json?
+  price          Float
+  images         Json?   // Array of ImageKit URLs
+  isActive       Boolean @default(true) @map("is_active")
+  isFlagged      Boolean @default(false) @map("is_flagged")
+  ratingAverage  Float?  @default(0) @map("rating_average")
+  ratingCount    Int     @default(0) @map("rating_count")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  seller       Seller        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category     Category      @relation(fields: [categoryId], references: [id])
+  productChats ProductChat[]
+
+  @@map("products")
+}
+
+model Service {
+  id            String  @id @default(cuid())
+  sellerId      String  @map("seller_id")
+  categoryId    String  @map("category_id")
+  title         String
+  description   String
+  price         Float
+  durationMinutes Int   @map("duration_minutes")
+  isMobileService Boolean @default(false) @map("is_mobile_service")
+  images        Json?   // Array of ImageKit URLs
+  isActive      Boolean @default(true) @map("is_active")
+  ratingAverage Float?  @default(0) @map("rating_average")
+  ratingCount   Int     @default(0) @map("rating_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  seller       Seller        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category     Category      @relation(fields: [categoryId], references: [id])
+  appointments Appointment[]
+
+  @@map("services")
+}
+
+// Removed Order and OrderItem models - replaced with ProductChat system
+
+model Appointment {
+  id                 String            @id @default(cuid())
+  buyerId            String            @map("buyer_id")
+  sellerId           String            @map("seller_id")
+  serviceId          String            @map("service_id")
+  appointmentNumber  String            @unique @map("appointment_number")
+  status             AppointmentStatus @default(PENDING)
+  scheduledDate      DateTime          @map("scheduled_date")
+  scheduledTimeStart DateTime          @map("scheduled_time_start")
+  scheduledTimeEnd   DateTime          @map("scheduled_time_end")
+  totalAmount        Float             @map("total_amount")
+  serviceLocation    Json?             @map("service_location")
+  notes              String?
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  buyer            User                        @relation(fields: [buyerId], references: [id])
+  seller           Seller                      @relation(fields: [sellerId], references: [id])
+  service          Service                     @relation(fields: [serviceId], references: [id])
+  reviews          Review[]
+  statusHistory    AppointmentStatusHistory[]
+  messages         AppointmentMessage[]
+
+  @@map("appointments")
+}
+
+model AppointmentStatusHistory {
+  id        String            @id @default(cuid())
+  appointmentId String        @map("appointment_id")
+  status    AppointmentStatus
+  notes     String?
+  changedBy String            @map("changed_by") // User ID who changed the status
+  changedAt DateTime          @default(now()) @map("changed_at")
+
+  // Relations
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  changedByUser User        @relation("AppointmentStatusChanges", fields: [changedBy], references: [id])
+
+  @@map("appointment_status_history")
+}
+
+model AppointmentMessage {
+  id            String   @id @default(cuid())
+  appointmentId String   @map("appointment_id")
+  senderId      String   @map("sender_id")
+  receiverId    String   @map("receiver_id")
+  message       String
+  isRead        Boolean  @default(false) @map("is_read")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  sender      User        @relation("SentAppointmentMessages", fields: [senderId], references: [id])
+  receiver    User        @relation("ReceivedAppointmentMessages", fields: [receiverId], references: [id])
+
+  @@map("appointment_messages")
+}
+
+model SellerAvailability {
+  id          String   @id @default(cuid())
+  sellerId    String   @map("seller_id")
+  dayOfWeek   Int      // 0 = Sunday, 1 = Monday, etc.
+  startTime   String   // Format: "HH:MM" (24-hour)
+  endTime     String   // Format: "HH:MM" (24-hour)
+  isAvailable Boolean  @default(true) @map("is_available")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([sellerId, dayOfWeek])
+  @@map("seller_availability")
+}
+
+model SellerTimeOff {
+  id        String    @id @default(cuid())
+  sellerId  String    @map("seller_id")
+  startDate DateTime  @map("start_date")
+  endDate   DateTime  @map("end_date")
+  reason    String?
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("seller_time_off")
+}
+
+model Review {
+  id            String   @id @default(cuid())
+  reviewerId    String   @map("reviewer_id")
+  revieweeId    String   @map("reviewee_id")
+  appointmentId String?  @map("appointment_id")
+  rating        Int      // 1-5
+  comment       String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  reviewer    User         @relation("ReviewerReviews", fields: [reviewerId], references: [id])
+  reviewee    User         @relation("RevieweeReviews", fields: [revieweeId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@map("reviews")
+}
+
+// NEW: Product-based chat system
+model ProductChat {
+  id        String   @id @default(cuid())
+  productId String   @map("product_id")
+  buyerId   String   @map("buyer_id")
+  sellerId  String   @map("seller_id")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  product  Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  buyer    User            @relation("BuyerChats", fields: [buyerId], references: [id])
+  seller   User            @relation("SellerChats", fields: [sellerId], references: [id])
+  messages ProductMessage[]
+
+  @@unique([productId, buyerId]) // One chat per product per buyer
+  @@map("product_chats")
+}
+
+model ProductMessage {
+  id          String      @id @default(cuid())
+  chatId      String      @map("chat_id")
+  senderId    String      @map("sender_id")
+  message     String
+  messageType MessageType @default(TEXT) @map("message_type")
+  isRead      Boolean     @default(false) @map("is_read")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  chat   ProductChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender User        @relation("SentProductMessages", fields: [senderId], references: [id])
+
+  @@map("product_messages")
+}
+
+model SellerChatSettings {
+  id            String    @id @default(cuid())
+  sellerId      String    @unique @map("seller_id")
+  showPhone     Boolean   @default(false) @map("show_phone")
+  autoReplyText String?   @map("auto_reply_text")
+  isOnline      Boolean   @default(false) @map("is_online")
+  lastSeen      DateTime? @map("last_seen")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("seller_chat_settings")
+} 
