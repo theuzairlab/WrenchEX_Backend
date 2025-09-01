@@ -220,6 +220,57 @@ export class AvailabilityController {
   }
 
   /**
+   * Update seller time off
+   */
+  static async updateTimeOff(req: Request, res: Response): Promise<void> {
+    try {
+      const { timeOffId } = req.params;
+      const userId = req.user!.id;
+      const validatedData = validateRequest(sellerTimeOffValidation, req.body);
+
+      // Find the seller record for this user
+      const seller = await prisma.seller.findUnique({
+        where: { userId }
+      });
+
+      if (!seller) {
+        const response: ApiResponse<null> = {
+          success: false,
+          error: {
+            message: 'Seller profile not found. Please register as a seller first.'
+          }
+        };
+        res.status(404).json(response);
+        return;
+      }
+
+      const timeOff = await AvailabilityService.updateTimeOff(
+        timeOffId,
+        seller.id,
+        validatedData.startDate,
+        validatedData.endDate,
+        validatedData.reason
+      );
+
+      const response: ApiResponse<any> = {
+        success: true,
+        data: timeOff
+      };
+
+      res.status(200).json(response);
+    } catch (error: any) {
+      const response: ApiResponse<null> = {
+        success: false,
+        error: {
+          message: error.message || 'Failed to update time off'
+        }
+      };
+
+      res.status(400).json(response);
+    }
+  }
+
+  /**
    * Get seller time off
    */
   static async getTimeOff(req: Request, res: Response): Promise<void> {

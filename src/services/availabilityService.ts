@@ -148,6 +148,91 @@ export class AvailabilityService {
   }
 
   /**
+   * Update seller time off
+   */
+  static async updateTimeOff(
+    timeOffId: string,
+    sellerId: string,
+    startDate: Date,
+    endDate: Date,
+    reason?: string
+  ): Promise<SellerTimeOff> {
+    // Check if time off exists and belongs to seller
+    const existingTimeOff = await prisma.sellerTimeOff.findFirst({
+      where: {
+        id: timeOffId,
+        sellerId
+      }
+    });
+
+    if (!existingTimeOff) {
+      throw new Error('Time off not found or you do not have permission to update it');
+    }
+
+    // Check for overlapping time off (excluding current time off)
+    const overlapping = await prisma.sellerTimeOff.findFirst({
+      where: {
+        sellerId,
+        isActive: true,
+        id: { not: timeOffId },
+        OR: [
+          {
+            AND: [
+              { startDate: { lte: startDate } },
+              { endDate: { gt: startDate } }
+            ]
+          },
+          {
+            AND: [
+              { startDate: { lt: endDate } },
+              { endDate: { gte: endDate } }
+            ]
+          },
+          {
+            AND: [
+              { startDate: { gte: startDate } },
+              { endDate: { lte: endDate } }
+            ]
+          }
+        ]
+      }
+    });
+
+    if (overlapping) {
+      throw new Error('Time off period overlaps with existing time off');
+    }
+
+    // Check for appointments during this period
+    const appointmentsDuringTimeOff = await prisma.appointment.count({
+      where: {
+        sellerId,
+        status: {
+          in: ['PENDING', 'CONFIRMED']
+        },
+        scheduledDate: {
+          gte: startDate,
+          lte: endDate
+        }
+      }
+    });
+
+    if (appointmentsDuringTimeOff > 0) {
+      throw new Error('Cannot update time off when there are pending or confirmed appointments during this period');
+    }
+
+    const updatedTimeOff = await prisma.sellerTimeOff.update({
+      where: { id: timeOffId },
+      data: {
+        startDate,
+        endDate,
+        reason
+      }
+    });
+
+    return updatedTimeOff as SellerTimeOff;
+  }
+
+  /**
    * Get seller time off periods
    */
   static async getSellerTimeOff(sellerId: string, includeInactive: boolean = false): Promise<SellerTimeOff[]> {

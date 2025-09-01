@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { ProductChatService } from '../services/productChatService';
 import { ApiResponse } from '../types';
+import WebSocketService from '../services/websocketService';
 
 export class ProductChatController {
   /**
@@ -58,6 +59,18 @@ export class ProductChatController {
         message.trim(),
         messageType
       );
+
+      // Emit unread count update via WebSocket for the recipient
+      try {
+        // Get the chat to find the recipient
+        const chat = await ProductChatService.getChatById(chatId, senderId);
+        const recipientId = chat.buyerId === senderId ? chat.sellerId : chat.buyerId;
+        
+        await WebSocketService.getInstance().emitUnreadCountToUser(recipientId);
+      } catch (wsError) {
+        console.error('Failed to emit WebSocket update:', wsError);
+        // Don't fail the request for WebSocket errors
+      }
 
       const response: ApiResponse<any> = {
         success: true,
@@ -175,6 +188,14 @@ export class ProductChatController {
       const userId = req.user!.id;
 
       await ProductChatService.markChatAsRead(chatId, userId);
+
+      // Emit unread count update via WebSocket
+      try {
+        await WebSocketService.getInstance().emitUnreadCountToUser(userId);
+      } catch (wsError) {
+        console.error('Failed to emit WebSocket update:', wsError);
+        // Don't fail the request for WebSocket errors
+      }
 
       const response: ApiResponse<null> = {
         success: true

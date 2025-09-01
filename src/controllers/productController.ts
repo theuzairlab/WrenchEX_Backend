@@ -252,6 +252,50 @@ export class ProductController {
     }
   }
 
+  // PATCH /api/products/:id/toggle-status - Toggle product status (Seller only, own products)
+  static async toggleProductStatus(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        const response: ApiResponse = {
+          success: false,
+          error: { message: 'User not authenticated' }
+        };
+        res.status(401).json(response);
+        return;
+      }
+
+      const { id } = req.params;
+
+      // Get seller ID from user
+      const seller = await ProductService.getSellerByUserId(req.user.id);
+      if (!seller) {
+        const response: ApiResponse = {
+          success: false,
+          error: { message: 'Seller profile not found' }
+        };
+        res.status(404).json(response);
+        return;
+      }
+
+      const result = await ProductService.toggleProductStatus(id, seller.id);
+
+      const response: ApiResponse = {
+        success: true,
+        data: result
+      };
+
+      res.status(200).json(response);
+    } catch (error) {
+      const response: ApiResponse = {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : 'Failed to toggle product status'
+        }
+      };
+      res.status(400).json(response);
+    }
+  }
+
   // DELETE /api/products/:id - Delete product (Seller only, own products)
   static async deleteProduct(req: Request, res: Response): Promise<void> {
     try {

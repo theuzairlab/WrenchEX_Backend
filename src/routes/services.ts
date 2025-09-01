@@ -23,6 +23,9 @@ router.post('/', authorize(UserRole.SELLER), ServiceController.createService);
 // Update service (sellers only - can only update their own)
 router.put('/:serviceId', authorize(UserRole.SELLER), ServiceController.updateService);
 
+// Toggle service status (sellers only - can only toggle their own)
+router.patch('/:serviceId/toggle-status', authorize(UserRole.SELLER), ServiceController.toggleServiceStatus);
+
 // Delete service (sellers only - can only delete their own)
 router.delete('/:serviceId', authorize(UserRole.SELLER), ServiceController.deleteService);
 

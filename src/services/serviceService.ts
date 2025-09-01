@@ -260,7 +260,43 @@ export class ServiceService {
   }
 
   /**
-   * Delete service (soft delete)
+   * Toggle service status (activate/deactivate)
+   */
+  static async toggleServiceStatus(serviceId: string, sellerId: string) {
+    // Check if service exists and belongs to seller
+    const service = await prisma.service.findFirst({
+      where: {
+        id: serviceId,
+        sellerId
+      }
+    });
+
+    if (!service) {
+      throw new Error('Service not found or you do not have permission to modify it');
+    }
+
+    // Toggle the active status
+    const updatedService = await prisma.service.update({
+      where: { id: serviceId },
+      data: { isActive: !service.isActive },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    return {
+      service: updatedService,
+      message: `Service ${updatedService.isActive ? 'activated' : 'deactivated'} successfully`
+    };
+  }
+
+  /**
+   * Delete service (soft delete by setting isActive to false and marking as deleted)
    */
   static async deleteService(serviceId: string, sellerId: string): Promise<void> {
     // Check if service exists and belongs to seller
@@ -289,10 +325,15 @@ export class ServiceService {
       throw new Error('Cannot delete service with pending or active appointments');
     }
 
-    // Soft delete
+    // Soft delete the service by setting isActive to false and adding a deleted flag
+    // This preserves foreign key relationships while hiding the service
     await prisma.service.update({
       where: { id: serviceId },
-      data: { isActive: false }
+      data: { 
+        isActive: false,
+        // You can add a deletedAt timestamp if you want to track when it was deleted
+        // deletedAt: new Date()
+      }
     });
   }
 

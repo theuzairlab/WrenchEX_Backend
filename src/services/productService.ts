@@ -361,7 +361,41 @@ export class ProductService {
     return product;
   }
 
-  // Delete product (soft delete by setting isActive to false)
+  // Toggle product status (activate/deactivate)
+  static async toggleProductStatus(productId: string, sellerId: string) {
+    // Verify product exists and belongs to seller
+    const existingProduct = await prisma.product.findFirst({
+      where: {
+        id: productId,
+        sellerId
+      }
+    });
+
+    if (!existingProduct) {
+      throw new Error('Product not found or you do not have permission to modify it');
+    }
+
+    // Toggle the active status
+    const updatedProduct = await prisma.product.update({
+      where: { id: productId },
+      data: { isActive: !existingProduct.isActive },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    return {
+      product: updatedProduct,
+      message: `Product ${updatedProduct.isActive ? 'activated' : 'deactivated'} successfully`
+    };
+  }
+
+  // Delete product (hard delete from database)
   static async deleteProduct(productId: string, sellerId: string) {
     // Verify product exists and belongs to seller
     const existingProduct = await prisma.product.findFirst({
@@ -375,16 +409,12 @@ export class ProductService {
       throw new Error('Product not found or you do not have permission to delete it');
     }
 
-    // Since we removed orders, we can directly delete products
-    // No need to check for pending orders anymore
-
-    // Soft delete
-    await prisma.product.update({
-      where: { id: productId },
-      data: { isActive: false }
+    // Hard delete the product
+    await prisma.product.delete({
+      where: { id: productId }
     });
 
-    return { message: 'Product deleted successfully' };
+    return { message: 'Product permanently deleted from database' };
   }
 
   // Get featured products (highest rated, most recent)

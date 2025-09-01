@@ -26,6 +26,9 @@ router.post('/', authorize(UserRole.SELLER), ProductController.createProduct);
 // PUT /api/products/:id - Update product (Sellers only, own products)
 router.put('/:id', authorize(UserRole.SELLER), ProductController.updateProduct);
 
+// PATCH /api/products/:id/toggle-status - Toggle product status (Sellers only, own products)
+router.patch('/:id/toggle-status', authorize(UserRole.SELLER), ProductController.toggleProductStatus);
+
 // DELETE /api/products/:id - Delete product (Sellers only, own products)
 router.delete('/:id', authorize(UserRole.SELLER), ProductController.deleteProduct);
 

@@ -21,6 +21,7 @@ router.post('/weekly', authorize(UserRole.SELLER), AvailabilityController.setWee
 
 // Time off management (sellers only)
 router.post('/timeoff', authorize(UserRole.SELLER), AvailabilityController.addTimeOff);
+router.put('/timeoff/:timeOffId', authorize(UserRole.SELLER), AvailabilityController.updateTimeOff);
 router.delete('/timeoff/:timeOffId', authorize(UserRole.SELLER), AvailabilityController.removeTimeOff);
 
 // Get own availability/schedule (sellers only)

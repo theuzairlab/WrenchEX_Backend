@@ -28,6 +28,7 @@ import uploadRoutes from './routes/upload';
 import availabilityRoutes from './routes/availability';
 import productChatRoutes from './routes/productChat';
 import { ChatSocketManager } from './websocket/chatSocket';
+import WebSocketService from './services/websocketService';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -45,7 +46,7 @@ app.use(performanceMonitoring);
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 300 // limit each IP to 100 requests per windowMs
 });
 app.use('/api/', limiter);
 
@@ -106,6 +107,9 @@ app.use(errorHandler);
 
 // Initialize WebSocket Chat Manager
 const chatSocket = new ChatSocketManager(httpServer);
+
+// Register ChatSocketManager with WebSocketService
+WebSocketService.getInstance().setChatSocketManager(chatSocket);
 
 // Start server
 httpServer.listen(PORT, () => {

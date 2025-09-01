@@ -166,7 +166,8 @@ export class ServiceController {
       const userId = req.user?.id;
       const userRole = req.user?.role;
 
-      // Check if user can view inactive services (only the seller themselves or admin)
+      // For seller dashboard, always include inactive services if it's the current user
+      // or if it's an admin viewing any seller
       const includeInactive = (userId === sellerId) || (userRole === UserRole.ADMIN);
 
       const services = await ServiceService.getServicesBySeller(sellerId, includeInactive);
@@ -227,6 +228,50 @@ export class ServiceController {
         success: false,
         error: {
           message: error.message || 'Failed to update service'
+        }
+      };
+
+      res.status(400).json(response);
+    }
+  }
+
+  /**
+   * Toggle service status (activate/deactivate)
+   */
+  static async toggleServiceStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { serviceId } = req.params;
+      const userId = req.user!.id;
+
+      // Find the seller record for this user
+      const seller = await prisma.seller.findUnique({
+        where: { userId }
+      });
+
+      if (!seller) {
+        const response: ApiResponse<null> = {
+          success: false,
+          error: {
+            message: 'Seller profile not found. Please register as a seller first.'
+          }
+        };
+        res.status(404).json(response);
+        return;
+      }
+
+      const result = await ServiceService.toggleServiceStatus(serviceId, seller.id);
+
+      const response: ApiResponse<any> = {
+        success: true,
+        data: result
+      };
+
+      res.status(200).json(response);
+    } catch (error: any) {
+      const response: ApiResponse<null> = {
+        success: false,
+        error: {
+          message: error.message || 'Failed to toggle service status'
         }
       };
 

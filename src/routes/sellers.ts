@@ -47,32 +47,14 @@ router.get('/services', authorize(UserRole.SELLER), async (req, res) => {
       });
     }
     
-    // Check if search or filters are provided
-    const hasFilters = req.query.search || req.query.categoryId || req.query.isMobileService;
+    // Always use the getServicesBySeller method with includeInactive: true
+    // This ensures sellers can see all their services (active and inactive)
+    const services = await ServiceService.getServicesBySeller(seller.id, true);
     
-    if (hasFilters) {
-      // Use the general getServices method with seller filtering
-      const filters = {
-        sellerId: seller.id,
-        search: req.query.search as string,
-        categoryId: req.query.categoryId as string,
-        isMobileService: req.query.isMobileService === 'true' ? true : req.query.isMobileService === 'false' ? false : undefined,
-        page: req.query.page ? parseInt(req.query.page as string) : 1,
-        limit: req.query.limit ? parseInt(req.query.limit as string) : 20,
-        includeInactive: true // Sellers can see their own inactive services
-      };
-      
-      const services = await ServiceService.getServices(filters);
-      
-      return res.status(200).json({
-        success: true,
-        data: services
-      });
-    } else {
-      // Use the simple getServicesBySeller method for basic listing
-      req.params.sellerId = seller.id;
-      return ServiceController.getServicesBySeller(req, res);
-    }
+    return res.status(200).json({
+      success: true,
+      data: services
+    });
   } catch (error) {
     return res.status(500).json({
       success: false,

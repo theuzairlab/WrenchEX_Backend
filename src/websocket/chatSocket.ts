@@ -128,8 +128,11 @@ export class ChatSocketManager {
             message: newMessage
           });
 
-          // Send push notification to offline users
-          await this.sendNotificationToOfflineUsers(messageData.chatId, newMessage);
+                // Send push notification to offline users
+      await this.sendNotificationToOfflineUsers(messageData.chatId, newMessage);
+      
+      // Emit unread count update to all users in this chat
+      await this.emitUnreadCountUpdate(messageData.chatId);
 
           console.log(`📨 Message sent in chat ${messageData.chatId} by ${socket.user.userId}`);
 
@@ -282,5 +285,71 @@ export class ChatSocketManager {
    */
   public broadcast(event: string, data: any): void {
     this.io.emit(event, data);
+  }
+
+  /**
+   * Emit unread count update to all users in a chat
+   */
+  public async emitUnreadCountUpdate(chatId: string) {
+    try {
+      // Get the chat to find all participants
+      const chat = await prisma.productChat.findUnique({
+        where: { id: chatId },
+        include: {
+          buyer: true,
+          product: {
+            include: {
+              seller: true
+            }
+          }
+        }
+      });
+
+      if (!chat) return;
+
+      const participants = [chat.buyerId, chat.product.seller.userId];
+      
+      // Update unread count for each participant
+      for (const userId of participants) {
+        try {
+          const unreadCount = await ProductChatService.getUnreadCount(userId);
+          
+          // Emit to the specific user
+          const userSocket = Array.from(this.connectedUsers.values()).find(u => u.userId === userId);
+          if (userSocket) {
+            this.io.to(userSocket.socketId).emit('unread_count_update', {
+              count: unreadCount,
+              chatId: chatId
+            });
+            console.log(`📊 Unread count update sent to user ${userId}: ${unreadCount}`);
+          }
+        } catch (error) {
+          console.error(`❌ Failed to get unread count for user ${userId}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to emit unread count update:', error);
+    }
+  }
+
+  /**
+   * Emit unread count update to a specific user
+   */
+  public async emitUnreadCountToUser(userId: string) {
+    try {
+      const unreadCount = await ProductChatService.getUnreadCount(userId);
+      
+      // Emit to the specific user
+      const userSocket = Array.from(this.connectedUsers.values()).find(u => u.userId === userId);
+      if (userSocket) {
+        this.io.to(userSocket.socketId).emit('unread_count_update', {
+          count: unreadCount,
+          userId: userId
+        });
+        console.log(`📊 Unread count update sent to user ${userId}: ${unreadCount}`);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to emit unread count to user ${userId}:`, error);
+    }
   }
 }
