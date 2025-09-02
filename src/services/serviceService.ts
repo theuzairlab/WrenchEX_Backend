@@ -106,7 +106,6 @@ export class ServiceService {
     } = filters;
 
     const where: any = {
-      isFlagged: false,
       seller: {
         isApproved: true
       }
