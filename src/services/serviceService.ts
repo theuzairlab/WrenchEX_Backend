@@ -105,7 +105,12 @@ export class ServiceService {
       includeInactive = false
     } = filters;
 
-    const where: any = {};
+    const where: any = {
+      isFlagged: false,
+      seller: {
+        isApproved: true
+      }
+    };
     
     // Only filter by active status if not including inactive
     if (!includeInactive) {
@@ -132,9 +137,11 @@ export class ServiceService {
 
     // Location filters on seller
     if (city || area) {
-      where.seller = {};
-      if (city) where.seller.city = { contains: city, mode: 'insensitive' };
-      if (area) where.seller.area = { contains: area, mode: 'insensitive' };
+      where.seller = {
+        ...where.seller, // Preserve existing seller filters (isApproved: true)
+        ...(city && { city: { contains: city, mode: 'insensitive' } }),
+        ...(area && { area: { contains: area, mode: 'insensitive' } })
+      };
     }
 
     const skip = (page - 1) * limit;
